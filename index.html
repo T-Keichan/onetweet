@@ -1,0 +1,105 @@
+<?php
+session_start();
+require('function.php');
+
+if (isset($_SESSION['id']) && $_SESSION['time'] + 3600 > time()) {
+    $_SESSION['time'] = time();
+
+    $members = $db->prepare('SELECT * FROM members WHERE id=?');
+    $members->execute(array($_SESSION['id']));
+    $member = $members->fetch();
+} else {
+    header('Location: login.php');
+    exit();
+}
+if (!empty($_POST)) {
+    if ($_POST['message'] !== '') {
+        $message = $db->prepare('INSERT INTO posts SET member_id=?, message=?,created=NOW()');
+        $message->execute(array(
+            $member['id'],
+            $_POST['message']
+        ));
+        header('Location: index.php');
+        exit();
+    }
+}
+
+$page = $_REQUEST['page'];
+if ($page == '') {
+    $page = 1;
+}
+$page = max($page, 1);
+
+$count = $db->query('SELECT COUNT(*) AS cnt FROM posts');
+$cnt = $count->fetch();
+$maxPage = ceil($cnt['cnt'] / 5);
+$page = min($page, $maxPage);
+
+$start = ($page - 1) * 5;
+$posts = $db->prepare('SELECT m.name, p.* FROM members m, posts p WHERE m.id=p.member_id ORDER BY p.created DESC LIMIT ?,5');
+$posts->bindParam(1, $start, PDO::PARAM_INT);
+$posts->execute();
+
+?>
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneTweet</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="content">
+        <header>
+            <div class="mein-name">
+                <h2>ひとこと掲示板Onetweet</h2>
+            </div>
+        </header>
+
+        <?php foreach ($posts as $post) : ?>
+            <div class="tweet">
+                <p><?php echo htmlspecialchars($post['message'], ENT_QUOTES); ?><span class="name">（<?php echo htmlspecialchars($post['name'] . 'さんのメッセージです。', ENT_QUOTES); ?>）</span></p>
+                <p class="day"><?php echo htmlspecialchars($post['created'], ENT_QUOTES); ?></p>
+            </div>
+        <?php endforeach; ?>
+
+        <ul class="paging">
+            <?php if ($page > 1) : ?>
+                <li>
+                    <a href="index.php?page=<?php echo $page - 1; ?>">&lt;前のページへ</a>
+                </li>
+            <?php endif; ?>
+
+            <?php if ($page < $maxPage) : ?>
+                <li>
+                    <a href="index.php?page=<?php echo $page + 1; ?>">次のページへ&gt;</a>
+                </li>
+            <?php endif; ?>
+        </ul>
+
+        <form action="" method="post">
+            <label for="textarea"><?php echo htmlspecialchars($member['name'], ENT_QUOTES); ?>さんメッセージをどうぞ。</p></label>
+            <div class="textarea">
+                <textarea id="textarea" name="message" rows="5" cols="74" maxlength="255" placeholder="255字以内で入力してください。"></textarea>
+                <button type="submit">投稿する</button>
+            </div>
+        </form>
+
+        <div class="logout">
+            <a href="logout.php">ログアウト</a>
+        </div>
+    </div>
+    <div class="ex">
+        <ul>
+            <li>データベースへの書き込み、読み出し</li>
+            <li>ページング機能</li>
+            <li>ログアウト（セッション・クッキーの削除）</li>
+            <li>セッション情報が無ければログイン画面へ移動</li>
+        </ul>
+    </div>
+</body>
+
+</html>
